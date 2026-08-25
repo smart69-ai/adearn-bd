@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { 
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'sonjitkumar051@gmail.com'
+      ); 
+    }
+
+    // User Profile Rules
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['uid', 'name', 'phone', 'balance', 'referralCode', 'isAdmin', 'createdAt', 'hasDeposited']) &&
+               data.uid is string &&
+               data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+               data.phone is string &&
+               data.balance is number &&
+               data.referralCode is string &&
+               (data.referredBy == null || data.referredBy is string) &&
+               data.isAdmin is bool &&
+               data.hasDeposited is bool &&
+               (!data.keys().contains('email') || data.email is string || data.email == null);
+      }
+
+      allow get: if isSignedIn(); // Allow reading any user profile for referrals
+      allow list: if isSignedIn(); // Allow listing users for referrals
+      allow create: if isSignedIn() && isValidUser(incoming()) && userId == request.auth.uid && incoming().createdAt == request.time;
+      allow update: if (isSignedIn() && (
+        // Action: User updating their own profile or balance (tasks)
+        (userId == request.auth.uid && (
+          incoming().diff(existing()).affectedKeys().hasAny(['name', 'phone', 'notificationPrefs', 'email', 'balance']) &&
+          incoming().isAdmin == existing().isAdmin &&
+          incoming().hasDeposited == existing().hasDeposited
+        )) ||
+        // Action: Referral bonus (someone else using referral code)
+        (incoming().diff(existing()).affectedKeys().hasOnly(['balance']) && 
+         incoming().balance == existing().balance + 120) ||
+        isAdmin()
+      ));
+    }
+
+    // Admin collection to store list of admin UIDs
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Only manageable via console
+    }
+
+    // Ad Plans
+    match /plans/{planId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Advertisements
+    match /ads/{adId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Transactions (Deposits/Withdrawals)
+    match /transactions/{transactionId} {
+      function isValidTransaction(data) {
+        return (data.userId == request.auth.uid || (data.method == 'system' && data.type == 'deposit')) &&
+               data.amount is number && data.amount > 0 &&
+               data.type in ['deposit', 'withdraw'] &&
+               data.method in ['bkash', 'nagad', 'system'] &&
+               (data.method == 'system' || (data.accountNumber is string && data.accountNumber.size() >= 3)) &&
+               (data.status == 'pending' || (data.status == 'completed' && data.method == 'system')) &&
+               data.createdAt == request.time;
+      }
+
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidTransaction(incoming());
+      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason']);
+    }
+
+    // Ad Views
+    match /users/{userId}/adViews/{viewId} {
+      allow list, get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().viewedAt == request.time;
+    }
+
+    // Settings Rules
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Support Tickets
+    match /support_tickets/{ticketId} {
+      function isValidTicket(data) {
+        return data.userId == request.auth.uid &&
+               data.category is string &&
+               data.message is string && data.message.size() > 0 &&
+               data.status == 'pending' &&
+               data.createdAt == request.time;
+      }
+      allow create: if isSignedIn() && isValidTicket(incoming());
+      allow list, get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasAny(['status', 'reply', 'repliedAt']);
+      allow delete: if isAdmin();
+    }
+  }
+}

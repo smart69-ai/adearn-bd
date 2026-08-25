@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user account information and balance",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "balance": { "type": "number" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "activePlanId": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "notificationPrefs": {
+          "type": "object",
+          "properties": {
+            "withdrawals": { "type": "boolean" },
+            "newAds": { "type": "boolean" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "phone", "balance", "referralCode", "isAdmin"]
+    },
+    "AdPlan": {
+      "title": "Investment Plan",
+      "description": "Details of available investment packages",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "dailyAds": { "type": "number" },
+        "earningPerAd": { "type": "number" },
+        "durationDays": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "name", "price", "dailyAds", "earningPerAd"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Deposit and withdrawal logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["deposit", "withdraw"] },
+        "method": { "type": "string", "enum": ["bkash", "nagad", "rocket"] },
+        "accountNumber": { "type": "string" },
+        "trxId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "type", "method", "accountNumber", "status"]
+    },
+    "Ad": {
+      "title": "Advertisement",
+      "description": "Individual ads to watch",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "rewardAmount": { "type": "number" },
+        "durationSeconds": { "type": "number" }
+      },
+      "required": ["title", "imageUrl", "rewardAmount", "durationSeconds"]
+    },
+    "AdView": {
+      "title": "Ad View Record",
+      "description": "Tracks when a user completes an ad view",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "adId": { "type": "string" },
+        "earned": { "type": "number" },
+        "viewedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "adId", "earned", "viewedAt"]
+    },
+    "SupportTicket": {
+      "title": "Support Ticket",
+      "description": "User support requests",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "category": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "open", "closed"] },
+        "reply": { "type": "string" },
+        "repliedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "category", "message", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user profiles"
+    },
+    "/plans/{planId}": {
+      "schema": "AdPlan",
+      "description": "Available packages"
+    },
+    "/ads/{adId}": {
+      "schema": "Ad",
+      "description": "Active advertisements"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Payment requests"
+    },
+    "/support_tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Support messages"
+    },
+    "/users/{userId}/adViews/{viewId}": {
+      "schema": "AdView",
+      "description": "Daily ad view history per user"
+    }
+  }
+}
